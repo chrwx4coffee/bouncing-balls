@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Bouncing Ball with Speed Limits</title>
+  <style>
+    /* Basit stil ayarları: sayfa ortalanmış, arka plan beyaz */
+    body {
+      margin: 0;
+      background-color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    canvas {
+      background-color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <script>
+    // Canvas ve 2D context'i alınır
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Ekran boyutları
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+
+    // Renkler
+    const WHITE = '#FFFFFF';
+    const RED = '#FF0000';
+    const BLUE = '#0000FF';
+
+    // Dairenin özellikleri
+    const circleRadius = 250;
+    const circleCenter = { x: WIDTH / 2, y: HEIGHT / 2 };
+
+    // Topun özellikleri
+    const ballRadius = 20;
+    let ballX = circleCenter.x;
+    let ballY = circleCenter.y;
+    const ballSpeed = 5;
+    const initialAngle = 45; // derece cinsinden
+
+    // Yerçekimi ve hız vektörleri
+    const gravity = 0.5;
+    let ballDx = ballSpeed * Math.cos(initialAngle * Math.PI / 180);
+    let ballDy = -ballSpeed * Math.sin(initialAngle * Math.PI / 180);
+
+    // Hız sınırları
+    const minSpeed = 5;
+    const maxSpeed = 20;
+
+    // Rastgele hız değişimi için parametreler
+    const speedChangeMin = 0.8;
+    const speedChangeMax = 1.8;
+
+    // Ana animasyon döngüsü
+    function update() {
+      // Yerçekimi etkisi
+      ballDy += gravity;
+
+      // Topun pozisyonunu güncelle
+      ballX += ballDx;
+      ballY += ballDy;
+
+      // Topun dairenin içinde kalıp kalmadığını kontrol et
+      const dx = ballX - circleCenter.x;
+      const dy = ballY - circleCenter.y;
+      const distanceFromCenter = Math.sqrt(dx * dx + dy * dy);
+
+      // Eğer top dairenin dışına çıkarsa, yansıma hesaplanır
+      if (distanceFromCenter + ballRadius >= circleRadius) {
+        // Çarpışma noktasındaki normal vektörü hesapla
+        const normalX = dx / distanceFromCenter;
+        const normalY = dy / distanceFromCenter;
+
+        // Hız vektörünü yansıt (yansıma formülü)
+        const dotProduct = ballDx * normalX + ballDy * normalY;
+        ballDx = ballDx - 2 * dotProduct * normalX;
+        ballDy = ballDy - 2 * dotProduct * normalY;
+
+        // Topu dairenin içine geri taşı (çakışmayı düzeltmek için)
+        const overlap = (distanceFromCenter + ballRadius) - circleRadius;
+        ballX -= overlap * normalX;
+        ballY -= overlap * normalY;
+
+        // Topun hızını rastgele bir oranda değiştir
+        const speedChange = speedChangeMin + Math.random() * (speedChangeMax - speedChangeMin);
+        ballDx *= speedChange;
+        ballDy *= speedChange;
+
+        // Topun hızını kontrol et ve sınırları uygula
+        const currentSpeed = Math.sqrt(ballDx * ballDx + ballDy * ballDy);
+        if (currentSpeed < minSpeed) {
+          const speedBoost = minSpeed / currentSpeed;
+          ballDx *= speedBoost;
+          ballDy *= speedBoost;
+        } else if (currentSpeed > maxSpeed) {
+          const speedReduction = maxSpeed / currentSpeed;
+          ballDx *= speedReduction;
+          ballDy *= speedReduction;
+        }
+      }
+
+      // Canvas'ı temizle
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+      // Daireyi çiz (sınır)
+      ctx.beginPath();
+      ctx.arc(circleCenter.x, circleCenter.y, circleRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = BLUE;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.closePath();
+
+      // Topu çiz
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
+      ctx.fillStyle = RED;
+      ctx.fill();
+      ctx.closePath();
+
+      // Bir sonraki kare için animasyon döngüsü
+      requestAnimationFrame(update);
+    }
+
+    // Animasyonu başlat
+    requestAnimationFrame(update);
+  </script>
+</body>
+</html>
