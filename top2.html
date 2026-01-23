@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Bouncing Ball with Speed & Style Controls</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: sans-serif;
+    }
+    canvas {
+      background-color: #fff;
+      border: 1px solid #ccc;
+    }
+    #controls {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+      align-items: center;
+    }
+    #controls > div {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    label {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="controls">
+    <div>
+      <label for="ballColor">Top Rengi:</label>
+      <input type="color" id="ballColor" value="#FF0000">
+    </div>
+    <div>
+      <label for="minSpeed">Min Hız:</label>
+      <input type="number" id="minSpeed" value="5" min="1">
+    </div>
+    <div>
+      <label for="maxSpeed">Max Hız:</label>
+      <input type="number" id="maxSpeed" value="20" min="1">
+    </div>
+    <div>
+      <label for="circleDiameter">Çember Çapı:</label>
+      <input type="number" id="circleDiameter" value="500" min="10">
+    </div>
+    <div>
+      <label for="circleColor">Çember Rengi:</label>
+      <input type="color" id="circleColor" value="#0000FF">
+    </div>
+  </div>
+  <script>
+    // Canvas ve context ayarlanıyor
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+
+    // Kontrol elemanlarından gelen varsayılan değerler
+    let ballColor = document.getElementById('ballColor').value;
+    let minSpeed = parseFloat(document.getElementById('minSpeed').value);
+    let maxSpeed = parseFloat(document.getElementById('maxSpeed').value);
+    let circleDiameter = parseFloat(document.getElementById('circleDiameter').value);
+    let circleColor = document.getElementById('circleColor').value;
+    let circleRadius = circleDiameter / 2;
+    const circleCenter = { x: WIDTH / 2, y: HEIGHT / 2 };
+
+    // Topun özellikleri
+    const ballRadius = 20;
+    let ballX = circleCenter.x;
+    let ballY = circleCenter.y;
+    const ballSpeed = 5;
+    const initialAngle = 45; // derece cinsinden
+
+    // Yerçekimi ve hız vektörleri
+    const gravity = 0.5;
+    let ballDx = ballSpeed * Math.cos(initialAngle * Math.PI / 180);
+    let ballDy = -ballSpeed * Math.sin(initialAngle * Math.PI / 180);
+
+    // Rastgele hız değişimi parametreleri
+    const speedChangeMin = 0.8;
+    const speedChangeMax = 1.8;
+
+    // Kontrol panelindeki input elemanlarına event listener ekleyerek değerleri güncelleyelim
+    document.getElementById('ballColor').addEventListener('change', (e) => {
+      ballColor = e.target.value;
+    });
+
+    document.getElementById('minSpeed').addEventListener('change', (e) => {
+      minSpeed = parseFloat(e.target.value);
+    });
+
+    document.getElementById('maxSpeed').addEventListener('change', (e) => {
+      maxSpeed = parseFloat(e.target.value);
+    });
+
+    document.getElementById('circleDiameter').addEventListener('change', (e) => {
+      circleDiameter = parseFloat(e.target.value);
+      circleRadius = circleDiameter / 2;
+    });
+
+    document.getElementById('circleColor').addEventListener('change', (e) => {
+      circleColor = e.target.value;
+    });
+
+    // Animasyon döngüsü
+    function update() {
+      // Yerçekimi etkisi
+      ballDy += gravity;
+
+      // Topun pozisyonunu güncelle
+      ballX += ballDx;
+      ballY += ballDy;
+
+      // Topun dairenin içinde kalıp kalmadığını kontrol et
+      const dx = ballX - circleCenter.x;
+      const dy = ballY - circleCenter.y;
+      const distanceFromCenter = Math.sqrt(dx * dx + dy * dy);
+
+      // Top, çemberin sınırının dışına çıktıysa
+      if (distanceFromCenter + ballRadius >= circleRadius) {
+        // Çarpışma noktasındaki normal vektörü
+        const normalX = dx / distanceFromCenter;
+        const normalY = dy / distanceFromCenter;
+
+        // Yansıma hesaplaması
+        const dotProduct = ballDx * normalX + ballDy * normalY;
+        ballDx = ballDx - 2 * dotProduct * normalX;
+        ballDy = ballDy - 2 * dotProduct * normalY;
+
+        // Çakışmayı düzeltmek için topu geri taşı
+        const overlap = (distanceFromCenter + ballRadius) - circleRadius;
+        ballX -= overlap * normalX;
+        ballY -= overlap * normalY;
+
+        // Rastgele hız değişimi
+        const speedChange = speedChangeMin + Math.random() * (speedChangeMax - speedChangeMin);
+        ballDx *= speedChange;
+        ballDy *= speedChange;
+
+        // Hız sınırlarını kontrol et
+        const currentSpeed = Math.sqrt(ballDx * ballDx + ballDy * ballDy);
+        if (currentSpeed < minSpeed) {
+          const speedBoost = minSpeed / currentSpeed;
+          ballDx *= speedBoost;
+          ballDy *= speedBoost;
+        } else if (currentSpeed > maxSpeed) {
+          const speedReduction = maxSpeed / currentSpeed;
+          ballDx *= speedReduction;
+          ballDy *= speedReduction;
+        }
+      }
+
+      // Canvas'ı temizle
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+      // Çemberi çiz
+      ctx.beginPath();
+      ctx.arc(circleCenter.x, circleCenter.y, circleRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = circleColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.closePath();
+
+      // Topu çiz
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
+      ctx.fillStyle = ballColor;
+      ctx.fill();
+      ctx.closePath();
+
+      requestAnimationFrame(update);
+    }
+
+    requestAnimationFrame(update);
+  </script>
+</body>
+</html>
