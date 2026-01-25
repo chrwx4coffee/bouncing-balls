@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Bouncing Balls with Collision & Controls (Güncellenmiş Çarpışma)</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      background-color: #fff;
+      border: 1px solid #ccc;
+      margin-top: 10px;
+    }
+    #controls {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+      align-items: center;
+    }
+    #controls > div {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    label {
+      font-weight: bold;
+    }
+    #ballList {
+      margin-top: 15px;
+      width: 800px;
+    }
+    .ballItem {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid #ddd;
+      padding: 5px 10px;
+      margin-bottom: 5px;
+      background-color: #f9f9f9;
+    }
+    .ballInfo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .colorBox {
+      width: 20px;
+      height: 20px;
+      border: 1px solid #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  
+  <div id="controls">
+    <div>
+      <label for="minSpeed">Min Hız:</label>
+      <input type="number" id="minSpeed" value="5" min="1">
+    </div>
+    <div>
+      <label for="maxSpeed">Max Hız:</label>
+      <input type="number" id="maxSpeed" value="20" min="1">
+    </div>
+    <div>
+      <label for="circleDiameter">Çember Çapı:</label>
+      <input type="number" id="circleDiameter" value="500" min="10">
+    </div>
+    <div>
+      <label for="circleColor">Çember Rengi:</label>
+      <input type="color" id="circleColor" value="#0000FF">
+    </div>
+    <div>
+      <button id="addBallButton">Top Ekle</button>
+    </div>
+  </div>
+  
+  <div id="ballList">
+    <!-- Eklenen topların bilgileri burada listelenecek -->
+  </div>
+  
+  <script>
+    // Canvas ve temel ayarlar
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+    
+    // Kontrol paneli elemanları ve değişkenler
+    let minSpeed = parseFloat(document.getElementById('minSpeed').value);
+    let maxSpeed = parseFloat(document.getElementById('maxSpeed').value);
+    let circleDiameter = parseFloat(document.getElementById('circleDiameter').value);
+    let circleColor = document.getElementById('circleColor').value;
+    let circleRadius = circleDiameter / 2;
+    const circleCenter = { x: WIDTH / 2, y: HEIGHT / 2 };
+    
+    // Fiziksel parametreler
+    const gravity = 0.5;
+    const speedChangeMin = 0.8;
+    const speedChangeMax = 1.8;
+    const defaultBallSpeed = 5;
+    const ballRadius = 20;
+    
+    // Toplar için dizi ve id sayacı
+    let balls = [];
+    let ballIdCounter = 0;
+    
+    // Rastgele renk üretimi
+    function getRandomColor() {
+      let letters = '0123456789ABCDEF';
+      let color = '#';
+      for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+      }
+      return color;
+    }
+    
+    // Yeni top ekleme: merkezden, rastgele renk ve yönle başlangıç hızıyla
+    function addBall() {
+      const angle = Math.random() * 2 * Math.PI;
+      const dx = defaultBallSpeed * Math.cos(angle);
+      const dy = defaultBallSpeed * Math.sin(angle);
+      const color = getRandomColor();
+      const ball = {
+        id: ballIdCounter++,
+        x: circleCenter.x,
+        y: circleCenter.y,
+        dx: dx,
+        dy: dy,
+        radius: ballRadius,
+        color: color
+      };
+      balls.push(ball);
+      updateBallList();
+    }
+    
+    // Topu silme fonksiyonu
+    function removeBall(ballId) {
+      balls = balls.filter(ball => ball.id !== ballId);
+      updateBallList();
+    }
+    
+    // Eklenen topları listeleyen paneli güncelle
+    function updateBallList() {
+      const ballListDiv = document.getElementById('ballList');
+      ballListDiv.innerHTML = '';
+      balls.forEach(ball => {
+        const ballDiv = document.createElement('div');
+        ballDiv.className = "ballItem";
+        
+        const infoDiv = document.createElement('div');
+        infoDiv.className = "ballInfo";
+        const colorBox = document.createElement('div');
+        colorBox.className = "colorBox";
+        colorBox.style.backgroundColor = ball.color;
+        const infoText = document.createElement('span');
+        infoText.textContent = `Top ID: ${ball.id}`;
+        
+        infoDiv.appendChild(colorBox);
+        infoDiv.appendChild(infoText);
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = "Sil";
+        deleteBtn.addEventListener('click', () => removeBall(ball.id));
+        
+        ballDiv.appendChild(infoDiv);
+        ballDiv.appendChild(deleteBtn);
+        ballListDiv.appendChild(ballDiv);
+      });
+    }
+    
+    // Kontrol paneli inputları için event listener'lar
+    document.getElementById('minSpeed').addEventListener('change', (e) => {
+      minSpeed = parseFloat(e.target.value);
+    });
+    document.getElementById('maxSpeed').addEventListener('change', (e) => {
+      maxSpeed = parseFloat(e.target.value);
+    });
+    document.getElementById('circleDiameter').addEventListener('change', (e) => {
+      circleDiameter = parseFloat(e.target.value);
+      circleRadius = circleDiameter / 2;
+    });
+    document.getElementById('circleColor').addEventListener('change', (e) => {
+      circleColor = e.target.value;
+    });
+    document.getElementById('addBallButton').addEventListener('click', addBall);
+    
+    // Ana animasyon döngüsü
+    function update() {
+      // Her top için: yerçekimi, pozisyon güncelleme, çember sınırı ile çarpışma
+      balls.forEach(ball => {
+        ball.dy += gravity;
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+        
+        // Çember sınır kontrolü
+        const dx = ball.x - circleCenter.x;
+        const dy = ball.y - circleCenter.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist + ball.radius >= circleRadius) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const dot = ball.dx * nx + ball.dy * ny;
+          ball.dx = ball.dx - 2 * dot * nx;
+          ball.dy = ball.dy - 2 * dot * ny;
+          
+          // Topu çemberin içine geri taşı
+          const overlap = (dist + ball.radius) - circleRadius;
+          ball.x -= overlap * nx;
+          ball.y -= overlap * ny;
+          
+          // Rastgele hız değişimi
+          const speedChange = speedChangeMin + Math.random() * (speedChangeMax - speedChangeMin);
+          ball.dx *= speedChange;
+          ball.dy *= speedChange;
+          
+          // Hız sınırı kontrolü
+          const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+          if (currentSpeed < minSpeed) {
+            const boost = minSpeed / currentSpeed;
+            ball.dx *= boost;
+            ball.dy *= boost;
+          } else if (currentSpeed > maxSpeed) {
+            const reduction = maxSpeed / currentSpeed;
+            ball.dx *= reduction;
+            ball.dy *= reduction;
+          }
+        }
+      });
+      
+      // Toplar arası çarpışma kontrolü (güncellenmiş versiyon)
+      for (let i = 0; i < balls.length; i++) {
+        for (let j = i + 1; j < balls.length; j++) {
+          const ball1 = balls[i];
+          const ball2 = balls[j];
+          const dx = ball2.x - ball1.x;
+          const dy = ball2.y - ball1.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance < ball1.radius + ball2.radius) {
+            // Çarpışma normal vektörünü hesapla
+            const nx = dx / distance;
+            const ny = dy / distance;
+            // Üst üste binme miktarı
+            const overlap = (ball1.radius + ball2.radius - distance);
+            // Pozisyonları düzelt (eşit dağıtım)
+            ball1.x -= nx * overlap / 2;
+            ball1.y -= ny * overlap / 2;
+            ball2.x += nx * overlap / 2;
+            ball2.y += ny * overlap / 2;
+            
+            // Göreceli hız vektörünü hesapla
+            const relVelX = ball1.dx - ball2.dx;
+            const relVelY = ball1.dy - ball2.dy;
+            const dot = relVelX * nx + relVelY * ny;
+            
+            // Sadece birbirine yaklaşan toplarda elastik çarpışma uygula
+            if (dot < 0) {
+              ball1.dx -= dot * nx;
+              ball1.dy -= dot * ny;
+              ball2.dx += dot * nx;
+              ball2.dy += dot * ny;
+            }
+          }
+        }
+      }
+      
+      // Canvas'ı temizle ve çizimleri yap
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+      
+      // Çemberi çiz
+      ctx.beginPath();
+      ctx.arc(circleCenter.x, circleCenter.y, circleRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = circleColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.closePath();
+      
+      // Tüm topları çiz
+      balls.forEach(ball => {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fillStyle = ball.color;
+        ctx.fill();
+        ctx.closePath();
+      });
+      
+      requestAnimationFrame(update);
+    }
+    
+    // Animasyonu başlat
+    requestAnimationFrame(update);
+  </script>
+</body>
+</html>
