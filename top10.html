@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Bouncing Balls & Çoklu Çemberler - Çarpışma Ayarları</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      margin-top: 10px;
+      border: 1px solid #ccc;
+    }
+    #controls {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+      align-items: center;
+    }
+    #controls > div {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    label {
+      font-weight: bold;
+    }
+    #ballList {
+      margin-top: 15px;
+      width: 800px;
+    }
+    .ballItem {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid #ddd;
+      padding: 5px 10px;
+      margin-bottom: 5px;
+      background-color: #f9f9f9;
+    }
+    .ballControls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .ballControls > div {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .colorBox {
+      width: 20px;
+      height: 20px;
+      border: 1px solid #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  
+  <!-- Genel Kontroller: Top, Çember, Arka Plan, Küçülme ve Çarpışma Ayarları -->
+  <div id="controls">
+    <!-- Top ile ilgili genel ayarlar -->
+    <div id="ballGlobalControls">
+      <div>
+        <label for="minSpeed">Default Min Hız:</label>
+        <input type="number" id="minSpeed" value="5" min="1">
+      </div>
+      <div>
+        <label for="maxSpeed">Default Max Hız:</label>
+        <input type="number" id="maxSpeed" value="20" min="1">
+      </div>
+      <div>
+        <label for="ballSize">Default Boy (Yarıçap):</label>
+        <input type="number" id="ballSize" value="20" min="5">
+      </div>
+      <div>
+        <button id="addBallButton">Top Ekle</button>
+      </div>
+    </div>
+    <!-- Çember ile ilgili ayarlar -->
+    <div id="circleControls">
+      <div>
+        <label for="circleColor">Çember Rengi:</label>
+        <input type="color" id="circleColor" value="#0000FF">
+      </div>
+      <div>
+        <label for="circleGap">Yeni Çember Mesafesi:</label>
+        <input type="number" id="circleGap" value="50" min="1">
+      </div>
+      <div>
+        <button id="addCircleButton">Çember Ekle</button>
+        <button id="removeCircleButton">Çember Sil</button>
+      </div>
+    </div>
+    <!-- Arka Plan Ayarları -->
+    <div id="bgControls">
+      <div>
+        <label for="bgColor">Arka Plan Rengi:</label>
+        <input type="color" id="bgColor" value="#FFFFFF">
+      </div>
+    </div>
+    <!-- Küçülme Kontrolleri (çember küçülmesi vs.) -->
+    <div id="shrinkControls">
+      <input type="checkbox" id="shrinkEnabled">
+      <label for="shrinkEnabled">Çember Küçülsün</label>
+      <div id="shrinkOptions" style="display: none; flex-wrap: wrap; gap: 10px; align-items: center;">
+        <input type="checkbox" id="shrinkBalls">
+        <label for="shrinkBalls">Toplar da küçülsün</label>
+        <input type="checkbox" id="autoShrink">
+        <label for="autoShrink">Her saniye çember küçülsün</label>
+        <label for="shrinkAmount">Küçülme Miktarı:</label>
+        <input type="number" id="shrinkAmount" value="10" min="1">
+      </div>
+    </div>
+    <!-- Çarpışma Ayarları -->
+    <div id="collisionControls">
+      <input type="checkbox" id="resizeOnCollision">
+      <label for="resizeOnCollision">Çarpışmada Boyut Değişimi</label>
+      <label for="resizeFactor">Değişim Oranı:</label>
+      <input type="number" id="resizeFactor" value="0.9" step="0.1" min="0.1">
+      
+      <input type="checkbox" id="addBallOnCollision">
+      <label for="addBallOnCollision">Çarpışmada Yeni Top Ekle</label>
+    </div>
+  </div>
+  
+  <!-- Eklenen topların ayarlarının listelendiği alan -->
+  <div id="ballList"></div>
+  
+  <script>
+    // Canvas ve temel ayarlar
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+    const center = { x: WIDTH / 2, y: HEIGHT / 2 };
+
+    // Fiziksel parametreler
+    const gravity = 0.5;
+    const speedChangeMin = 0.8;
+    const speedChangeMax = 1.8;
+    const defaultBallSpeed = 5;
+    
+    // Toplar için dizi ve benzersiz id sayacı
+    let balls = [];
+    let ballIdCounter = 0;
+    
+    // Çemberler için dizi (merkezden ortak): ilk çember varsayılan olarak
+    let circles = [];
+    const defaultCircleRadius = 250;
+    let initialCircleColor = document.getElementById('circleColor').value;
+    circles.push({ radius: defaultCircleRadius, color: initialCircleColor });
+    
+    // Arka plan rengi kontrolü
+    let backgroundColor = document.getElementById('bgColor').value;
+    document.getElementById('bgColor').addEventListener('input', (e) => {
+      backgroundColor = e.target.value;
+    });
+    
+    // Küçülme kontrolleri elemanları
+    const shrinkEnabledCheckbox = document.getElementById('shrinkEnabled');
+    const shrinkOptionsDiv = document.getElementById('shrinkOptions');
+    const autoShrinkCheckbox = document.getElementById('autoShrink');
+    const shrinkBallsCheckbox = document.getElementById('shrinkBalls');
+    const shrinkAmountInput = document.getElementById('shrinkAmount');
+    shrinkEnabledCheckbox.addEventListener('change', (e) => {
+      shrinkOptionsDiv.style.display = e.target.checked ? "flex" : "none";
+    });
+    
+    // Çarpışma kontrolleri elemanları
+    const resizeOnCollisionCheckbox = document.getElementById('resizeOnCollision');
+    const resizeFactorInput = document.getElementById('resizeFactor');
+    const addBallOnCollisionCheckbox = document.getElementById('addBallOnCollision');
+    
+    // Global kontrol inputlarından default top ayarlarını alma
+    function getDefaultBallSettings() {
+      return {
+        minSpeed: parseFloat(document.getElementById('minSpeed').value) || 5,
+        maxSpeed: parseFloat(document.getElementById('maxSpeed').value) || 20,
+        size: parseFloat(document.getElementById('ballSize').value) || 20
+      };
+    }
+    
+    // Rastgele renk üretimi (toplar için)
+    function getRandomColor() {
+      let letters = '0123456789ABCDEF';
+      let color = '#';
+      for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+      }
+      return color;
+    }
+    
+    // Yeni top ekleme: merkezden, rastgele yön ve renk ile; default ayarlar global kontrollerden alınır
+    function addBall(x = center.x, y = center.y) {
+      const { minSpeed, maxSpeed, size } = getDefaultBallSettings();
+      const angle = Math.random() * 2 * Math.PI;
+      const dx = defaultBallSpeed * Math.cos(angle);
+      const dy = defaultBallSpeed * Math.sin(angle);
+      const color = getRandomColor();
+      const ball = {
+        id: ballIdCounter++,
+        x: x,
+        y: y,
+        dx: dx,
+        dy: dy,
+        radius: size,
+        color: color,
+        minSpeed: minSpeed,
+        maxSpeed: maxSpeed,
+        image: null  // Resim atanacaksa bu alan kullanılır
+      };
+      balls.push(ball);
+      updateBallList();
+    }
+    
+    // Topu listeden silme
+    function removeBall(ballId) {
+      balls = balls.filter(ball => ball.id !== ballId);
+      updateBallList();
+    }
+    
+    // Eklenen topların ayar panelini güncelleme
+    function updateBallList() {
+      const ballListDiv = document.getElementById('ballList');
+      ballListDiv.innerHTML = '';
+      balls.forEach(ball => {
+        const ballDiv = document.createElement('div');
+        ballDiv.className = "ballItem";
+        
+        // Top ID ve kontrol alanları
+        const infoDiv = document.createElement('div');
+        infoDiv.className = "ballControls";
+        
+        // Top ID gösterimi
+        const idSpan = document.createElement('span');
+        idSpan.textContent = `Top ID: ${ball.id}`;
+        infoDiv.appendChild(idSpan);
+        
+        // Renk kontrolü
+        const colorDiv = document.createElement('div');
+        const colorLabel = document.createElement('label');
+        colorLabel.textContent = "Renk:";
+        const colorInput = document.createElement('input');
+        colorInput.type = "color";
+        colorInput.value = ball.color;
+        colorInput.addEventListener('input', (e) => {
+          ball.color = e.target.value;
+        });
+        colorDiv.appendChild(colorLabel);
+        colorDiv.appendChild(colorInput);
+        infoDiv.appendChild(colorDiv);
+        
+        // Min Hız kontrolü
+        const minSpeedDiv = document.createElement('div');
+        const minSpeedLabel = document.createElement('label');
+        minSpeedLabel.textContent = "Min Hız:";
+        const minSpeedInput = document.createElement('input');
+        minSpeedInput.type = "number";
+        minSpeedInput.value = ball.minSpeed;
+        minSpeedInput.min = "1";
+        minSpeedInput.addEventListener('input', (e) => {
+          ball.minSpeed = parseFloat(e.target.value) || ball.minSpeed;
+        });
+        minSpeedDiv.appendChild(minSpeedLabel);
+        minSpeedDiv.appendChild(minSpeedInput);
+        infoDiv.appendChild(minSpeedDiv);
+        
+        // Max Hız kontrolü
+        const maxSpeedDiv = document.createElement('div');
+        const maxSpeedLabel = document.createElement('label');
+        maxSpeedLabel.textContent = "Max Hız:";
+        const maxSpeedInput = document.createElement('input');
+        maxSpeedInput.type = "number";
+        maxSpeedInput.value = ball.maxSpeed;
+        maxSpeedInput.min = "1";
+        maxSpeedInput.addEventListener('input', (e) => {
+          ball.maxSpeed = parseFloat(e.target.value) || ball.maxSpeed;
+        });
+        maxSpeedDiv.appendChild(maxSpeedLabel);
+        maxSpeedDiv.appendChild(maxSpeedInput);
+        infoDiv.appendChild(maxSpeedDiv);
+        
+        // Boyut kontrolü (yarıçap)
+        const sizeDiv = document.createElement('div');
+        const sizeLabel = document.createElement('label');
+        sizeLabel.textContent = "Boy:";
+        const sizeInput = document.createElement('input');
+        sizeInput.type = "number";
+        sizeInput.value = ball.radius;
+        sizeInput.min = "5";
+        sizeInput.addEventListener('input', (e) => {
+          ball.radius = parseFloat(e.target.value) || ball.radius;
+        });
+        sizeDiv.appendChild(sizeLabel);
+        sizeDiv.appendChild(sizeInput);
+        infoDiv.appendChild(sizeDiv);
+        
+        // "Resim Ekle" kontrolü
+        const imageDiv = document.createElement('div');
+        const imageButton = document.createElement('button');
+        imageButton.textContent = "Resim Ekle";
+        imageDiv.appendChild(imageButton);
+        const fileInput = document.createElement('input');
+        fileInput.type = "file";
+        fileInput.accept = "image/*";
+        fileInput.style.display = "none";
+        imageDiv.appendChild(fileInput);
+        imageButton.addEventListener('click', () => {
+          fileInput.click();
+        });
+        fileInput.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+              ball.image = img;
+            };
+            img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+        });
+        infoDiv.appendChild(imageDiv);
+        
+        // Sil butonu
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = "Sil";
+        deleteBtn.addEventListener('click', () => removeBall(ball.id));
+        infoDiv.appendChild(deleteBtn);
+        
+        ballDiv.appendChild(infoDiv);
+        ballListDiv.appendChild(ballDiv);
+      });
+    }
+    
+    // Çember ekleme: girilen mesafe, mevcut en dıştaki çembere eklenir
+    function addCircle() {
+      const gap = parseFloat(document.getElementById('circleGap').value);
+      if (isNaN(gap) || gap <= 0) return;
+      const lastCircle = circles[circles.length - 1];
+      const newRadius = lastCircle.radius + gap;
+      const newColor = document.getElementById('circleColor').value;
+      circles.push({ radius: newRadius, color: newColor });
+    }
+    
+    // Çember silme: en dıştaki çemberi (en az 1 çember kalacak şekilde) siler
+    function removeCircle() {
+      if (circles.length > 1) {
+        circles.pop();
+      }
+    }
+    
+    // Event listener'lar
+    document.getElementById('addBallButton').addEventListener('click', () => addBall());
+    document.getElementById('addCircleButton').addEventListener('click', addCircle);
+    document.getElementById('removeCircleButton').addEventListener('click', removeCircle);
+    document.getElementById('circleColor').addEventListener('change', (e) => {
+      const newColor = e.target.value;
+      circles[circles.length - 1].color = newColor;
+    });
+    
+    // Küçülme için zaman takibi (her saniyede bir autoShrink kontrolü için)
+    let lastShrinkTime = Date.now();
+    
+    // Ana animasyon döngüsü
+    function update() {
+      // Arka planı istenen renkte doldur
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      
+      // Eğer "Çember Küçülsün" aktifse ve "Her saniye çember küçülsün" seçiliyse,
+      // her saniye aktif çemberin yarıçapı, girilen miktar kadar azaltılır.
+      if (shrinkEnabledCheckbox.checked && autoShrinkCheckbox.checked) {
+        const now = Date.now();
+        if (now - lastShrinkTime >= 1000) {
+          const activeCircle = circles[circles.length - 1];
+          const shrinkAmount = parseFloat(shrinkAmountInput.value) || 0;
+          if (shrinkAmount > 0 && activeCircle.radius > shrinkAmount) {
+            const oldRadius = activeCircle.radius;
+            activeCircle.radius -= shrinkAmount;
+            // Eğer "Toplar da küçülsün" seçiliyse, her topun yarıçapı orantılı olarak küçültülür.
+            if (shrinkBallsCheckbox.checked) {
+              balls.forEach(ball => {
+                ball.radius = ball.radius * (activeCircle.radius / oldRadius);
+              });
+            }
+          }
+          lastShrinkTime = now;
+        }
+      }
+      
+      // Aktif çember: en dıştaki çember, top collision için kullanılıyor
+      const activeCircle = circles[circles.length - 1];
+      
+      // Her top için; yerçekimi, pozisyon güncelleme, aktif çember sınırı kontrolü
+      balls.forEach(ball => {
+        ball.dy += gravity;
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+        
+        // Merkezden uzaklık
+        const dx = ball.x - center.x;
+        const dy = ball.y - center.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Aktif çember sınır kontrolü
+        if (distance + ball.radius >= activeCircle.radius) {
+          const nx = dx / distance;
+          const ny = dy / distance;
+          const dot = ball.dx * nx + ball.dy * ny;
+          ball.dx = ball.dx - 2 * dot * nx;
+          ball.dy = ball.dy - 2 * dot * ny;
+          const overlap = (distance + ball.radius) - activeCircle.radius;
+          ball.x -= overlap * nx;
+          ball.y -= overlap * ny;
+          const speedChange = speedChangeMin + Math.random() * (speedChangeMax - speedChangeMin);
+          ball.dx *= speedChange;
+          ball.dy *= speedChange;
+          
+          // Topa ait min/max hız kontrolü
+          const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+          if (currentSpeed < ball.minSpeed) {
+            const boost = ball.minSpeed / currentSpeed;
+            ball.dx *= boost;
+            ball.dy *= boost;
+          } else if (currentSpeed > ball.maxSpeed) {
+            const reduction = ball.maxSpeed / currentSpeed;
+            ball.dx *= reduction;
+            ball.dy *= reduction;
+          }
+        }
+      });
+      
+      // Toplar arası elastik çarpışma
+      for (let i = 0; i < balls.length; i++) {
+        for (let j = i + 1; j < balls.length; j++) {
+          const ball1 = balls[i];
+          const ball2 = balls[j];
+          const dx = ball2.x - ball1.x;
+          const dy = ball2.y - ball1.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < ball1.radius + ball2.radius) {
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const overlap = (ball1.radius + ball2.radius - dist);
+            ball1.x -= nx * overlap / 2;
+            ball1.y -= ny * overlap / 2;
+            ball2.x += nx * overlap / 2;
+            ball2.y += ny * overlap / 2;
+            
+            const relVelX = ball1.dx - ball2.dx;
+            const relVelY = ball1.dy - ball2.dy;
+            const dot = relVelX * nx + relVelY * ny;
+            if (dot < 0) {
+              ball1.dx -= dot * nx;
+              ball1.dy -= dot * ny;
+              ball2.dx += dot * nx;
+              ball2.dy += dot * ny;
+            }
+            // Çarpışma ayarları: eğer "Çarpışmada Boyut Değişimi" seçiliyse, topların yarıçapını güncelle.
+            if (resizeOnCollisionCheckbox.checked) {
+              const factor = parseFloat(resizeFactorInput.value) || 1;
+              ball1.radius *= factor;
+              ball2.radius *= factor;
+            }
+            // Eğer "Çarpışmada Yeni Top Ekle" seçiliyse, çarpışan topların ortalamasında yeni bir top ekle.
+            if (addBallOnCollisionCheckbox.checked) {
+              const newX = (ball1.x + ball2.x) / 2;
+              const newY = (ball1.y + ball2.y) / 2;
+              addBall(newX, newY);
+            }
+          }
+        }
+      }
+      
+      // Çemberleri çiz (içten dışa)
+      circles.forEach(circle => {
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, circle.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = circle.color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.closePath();
+      });
+      
+      // Topları çiz: eğer topa ait resim varsa, top şeklinde maskelenmiş şekilde resmi çiz; aksi halde renkli daire.
+      balls.forEach(ball => {
+        if (ball.image) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(ball.image, ball.x - ball.radius, ball.y - ball.radius, ball.radius * 2, ball.radius * 2);
+          ctx.restore();
+        } else {
+          ctx.beginPath();
+          ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+          ctx.fillStyle = ball.color;
+          ctx.fill();
+          ctx.closePath();
+        }
+      });
+      
+      requestAnimationFrame(update);
+    }
+    
+    requestAnimationFrame(update);
+  </script>
+</body>
+</html>
