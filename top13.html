@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Bouncing Balls - Ultimate Physics</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --accent-color: #38bdf8;
+            --text-color: #f1f5f9;
+            --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Glassmorphism Sidebar */
+        #sidebar {
+            width: 320px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 20px;
+            overflow-y: auto;
+            border-right: var(--glass-border);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 10;
+            transition: transform 0.3s ease;
+        }
+
+        #sidebar.hidden {
+            transform: translateX(-100%);
+            position: absolute;
+            height: 100%;
+        }
+
+        h2 {
+            margin: 0 0 10px 0;
+            color: var(--accent-color);
+            font-size: 1.4rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-group {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            border: var(--glass-border);
+        }
+
+        .control-header {
+            font-size: 0.9rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        input[type="number"],
+        input[type="color"],
+        button {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #475569;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            outline: none;
+            font-size: 0.9rem;
+        }
+
+        button {
+            background: var(--accent-color);
+            color: #0f172a;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        button:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+
+        button.danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        /* Switch Toggle */
+        .switch {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+
+        .switch input {
+            display: none;
+        }
+
+        .slider {
+            width: 36px;
+            height: 20px;
+            background-color: #334155;
+            border-radius: 20px;
+            position: relative;
+            transition: 0.3s;
+        }
+
+        .slider:before {
+            content: "";
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        input:checked+.slider {
+            background-color: var(--accent-color);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(16px);
+        }
+
+        /* Canvas Area */
+        #canvasContainer {
+            flex-grow: 1;
+            position: relative;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            box-shadow: 0 0 50px rgba(56, 189, 248, 0.1);
+        }
+
+        #toggleUI {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 20;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            padding: 8px;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        #toggleUI:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <button id="toggleUI" title="Toggle UI">☰</button>
+
+    <div id="sidebar">
+        <h2>Ayarlar <span style="font-size:0.8rem; opacity:0.7">v2.0</span></h2>
+
+        <div class="control-group">
+            <div class="control-header">Genel Kontroller</div>
+            <button id="addBallButton">Top Ekle (Click) </button>
+            <button id="clearBallsButton" class="danger">Tüm Topları Sil</button>
+            <div style="margin-top:10px; display:flex; gap:10px">
+                <input type="color" id="ballColor" value="#38bdf8" style="width:50px">
+                <input type="number" id="ballSize" value="15" style="width:100%" placeholder="Boyut">
+            </div>
+            <label class="switch" style="margin-top:10px">
+                <span>Rastgele Renk (Rainbow)</span>
+                <input type="checkbox" id="rainbowMode" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">Fizik Motoru</div>
+            <label>Yerçekimi: <span id="gravityVal">0.25</span></label>
+            <input type="range" id="gravity" min="-1" max="1" step="0.05" value="0.25">
+
+            <label>Sürtünme (Hava): <span id="frictionVal">0.99</span></label>
+            <input type="range" id="friction" min="0.90" max="1.00" step="0.001" value="0.99">
+
+            <label>Zıplama Gücü (Energy Loss): <span id="bounceVal">0.9</span></label>
+            <input type="range" id="bounce" min="0.1" max="1.5" step="0.1" value="0.9">
+
+            <label class="switch">
+                <span>Top Çarpışması</span>
+                <input type="checkbox" id="ballCollision">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">Efektler & Ses</div>
+            <label class="switch">
+                <span>Ses Efektleri 🔊</span>
+                <input type="checkbox" id="soundEnabled">
+                <span class="slider"></span>
+            </label>
+            <label class="switch">
+                <span>İz Efekti (Trails)</span>
+                <input type="checkbox" id="trailEffect" checked>
+                <span class="slider"></span>
+            </label>
+            <label class="switch">
+                <span>Glow (Bloom)</span>
+                <input type="checkbox" id="glowEffect" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">Çember Ayarları</div>
+            <div style="display:flex; gap:10px">
+                <button id="addCircleBtn">Ekle</button>
+                <button id="removeCircleBtn" class="danger">Sil</button>
+            </div>
+            <label class="switch" style="margin-top:10px">
+                <span>Dönme Animasyonu</span>
+                <input type="checkbox" id="rotateCircle">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <div id="canvasContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="stats">Toplar: 0</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const stats = document.getElementById('stats');
+
+        // Audio Context
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playSound(freq = 440, type = 'sine') {
+            if (!document.getElementById('soundEnabled').checked || !audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(freq * 0.5, audioCtx.currentTime + 0.1);
+
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        // State
+        let balls = [];
+        let circles = [];
+        let ballIdCounter = 0;
+        let width, height, center;
+        let circleRotation = 0;
+
+        function resize() {
+            width = window.innerWidth; // Sidebar üstüne binmesin diye container genişliğini alabiliriz ama tam ekran canvas daha şık
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            center = { x: width / 2 + (document.getElementById('sidebar').classList.contains('hidden') ? 0 : 160), y: height / 2 };
+        }
+        window.addEventListener('resize', resize);
+
+        class Ball {
+            constructor(x, y, radius, color, velocity = null) {
+                this.id = ballIdCounter++;
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.dx = velocity ? velocity.x : (Math.random() - 0.5) * 10;
+                this.dy = velocity ? velocity.y : (Math.random() - 0.5) * 10;
+                this.history = [];
+            }
+
+            draw() {
+                // Glow Effect
+                const glow = document.getElementById('glowEffect').checked;
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+
+                if (glow) {
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = this.color;
+                }
+
+                ctx.fill();
+                ctx.closePath();
+                ctx.shadowBlur = 0;
+
+                // Trails
+                if (document.getElementById('trailEffect').checked && this.history.length > 0) {
+                    ctx.beginPath();
+                    for (let i = 0; i < this.history.length; i++) {
+                        const point = this.history[i];
+                        ctx.lineTo(point.x, point.y);
+                    }
+                    ctx.strokeStyle = this.color;
+                    ctx.globalAlpha = 0.3;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+
+            update(activeCircleList) {
+                this.history.push({ x: this.x, y: this.y });
+                if (this.history.length > 20) this.history.shift();
+
+                // Apply Physics
+                const gravity = parseFloat(document.getElementById('gravity').value);
+                const friction = parseFloat(document.getElementById('friction').value);
+
+                this.dy += gravity;
+                this.dx *= friction;
+                this.dy *= friction;
+
+                this.x += this.dx;
+                this.y += this.dy;
+
+                // Boundary collision (Circle)
+                // En içteki çemberi sınır olarak alalım veya tüm çemberleri ? 
+                // Genelde tek bir "Container" çember olur. Mantığı basitleştirmek için en büyük çemberi sınır alalım.
+                const boundaryCircle = activeCircleList[activeCircleList.length - 1]; // En dıştaki
+
+                if (boundaryCircle) {
+                    const dx = this.x - center.x;
+                    const dy = this.y - center.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist + this.radius >= boundaryCircle.radius) {
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+
+                        // Reflection
+                        const dot = this.dx * nx + this.dy * ny;
+                        const bounce = parseFloat(document.getElementById('bounce').value);
+
+                        this.dx = (this.dx - 2 * dot * nx) * bounce;
+                        this.dy = (this.dy - 2 * dot * ny) * bounce;
+
+                        // Push back inside
+                        const overlap = (dist + this.radius) - boundaryCircle.radius;
+                        this.x -= overlap * nx;
+                        this.y -= overlap * ny;
+
+                        // Sound & Effect
+                        playSound(200 + Math.random() * 200, 'square');
+
+                        // Rotasyon etkisi
+                        if (document.getElementById('rotateCircle').checked) {
+                            // Basit bir teğet kuvveti ekle
+                            this.dx += -ny * 0.5;
+                            this.dy += nx * 0.5;
+                        }
+                    }
+                }
+            }
+
+            checkBallCollision(otherBall) {
+                const dx = otherBall.x - this.x;
+                const dy = otherBall.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < this.radius + otherBall.radius) {
+                    // Collision detected
+                    // Resolve overlap
+                    const overlap = (this.radius + otherBall.radius - distance) / 2;
+                    const nx = dx / distance;
+                    const ny = dy / distance;
+
+                    this.x -= overlap * nx;
+                    this.y -= overlap * ny;
+                    otherBall.x += overlap * nx;
+                    otherBall.y += overlap * ny;
+
+                    // Swap velocities (Elastic collision simplified)
+                    const tempDx = this.dx;
+                    const tempDy = this.dy;
+                    this.dx = otherBall.dx;
+                    this.dy = otherBall.dy;
+                    otherBall.dx = tempDx;
+                    otherBall.dy = tempDy;
+
+                    playSound(600 + Math.random() * 200, 'sine');
+                }
+            }
+        }
+
+        function createBall(x, y, vx, vy) {
+            const size = parseFloat(document.getElementById('ballSize').value);
+            const isRainbow = document.getElementById('rainbowMode').checked;
+            const color = isRainbow ? `hsl(${Math.random() * 360}, 100%, 60%)` : document.getElementById('ballColor').value;
+
+            balls.push(new Ball(x, y, size, color, { x: vx || (Math.random() - 0.5) * 10, y: vy || (Math.random() - 0.5) * 10 }));
+        }
+
+        function animate() {
+            // Update Stats
+            stats.innerText = `Toplar: ${balls.length} | FPS: ~60`;
+
+            // Draw Background
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.4)'; // Trail fading effect
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Rotate Center
+            if (document.getElementById('rotateCircle').checked) {
+                circleRotation += 0.01;
+            }
+
+            // Draw Circles
+            circles.forEach((c, index) => {
+                ctx.beginPath();
+                ctx.arc(center.x, center.y, c.radius, circleRotation * (index % 2 === 0 ? 1 : -1), Math.PI * 2 + circleRotation * (index % 2 === 0 ? 1 : -1));
+                ctx.strokeStyle = c.color;
+                ctx.lineWidth = 3;
+                if (document.getElementById('glowEffect').checked) {
+                    ctx.strokeStyle = c.color;
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = c.color;
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            });
+
+            // Update & Draw Balls
+            const activeCircleList = circles;
+            const checkCollision = document.getElementById('ballCollision').checked;
+
+            for (let i = 0; i < balls.length; i++) {
+                balls[i].update(activeCircleList);
+                balls[i].draw();
+
+                if (checkCollision) {
+                    for (let j = i + 1; j < balls.length; j++) {
+                        balls[i].checkBallCollision(balls[j]);
+                    }
+                }
+            }
+
+            // Values Update UI
+            document.getElementById('gravityVal').innerText = document.getElementById('gravity').value;
+            document.getElementById('frictionVal').innerText = document.getElementById('friction').value;
+            document.getElementById('bounceVal').innerText = document.getElementById('bounce').value;
+
+            requestAnimationFrame(animate);
+        }
+
+        // Init
+        resize();
+        circles.push({ radius: 350, color: '#38bdf8' });
+        createBall(center.x, center.y - 100);
+
+        // Inputs
+        document.getElementById('addBallButton').addEventListener('click', () => {
+            createBall(center.x, center.y - 100);
+            initAudio();
+        });
+
+        document.getElementById('clearBallsButton').addEventListener('click', () => {
+            balls = [];
+        });
+
+        document.getElementById('toggleUI').addEventListener('click', () => {
+            const sb = document.getElementById('sidebar');
+            sb.classList.toggle('hidden');
+            // Recenter
+            setTimeout(resize, 350);
+        });
+
+        document.getElementById('addCircleBtn').addEventListener('click', () => {
+            if (circles.length > 0)
+                circles.push({ radius: circles[circles.length - 1].radius - 50, color: `hsl(${Math.random() * 360},70%,60%)` });
+            else
+                circles.push({ radius: 350, color: '#38bdf8' });
+        });
+
+        document.getElementById('removeCircleBtn').addEventListener('click', () => {
+            circles.pop();
+        });
+
+        // Mouse Interaction
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+
+        canvas.addEventListener('mousedown', (e) => {
+            initAudio();
+            isDragging = true;
+            dragStart = { x: e.clientX, y: e.clientY };
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            const vx = (dragStart.x - e.clientX) * 0.15;
+            const vy = (dragStart.y - e.clientY) * 0.15;
+            // Eğer hareket çok azsa (tıklama gibi), sadece o noktaya bırak
+            if (Math.abs(vx) < 1 && Math.abs(vy) < 1) {
+                createBall(e.clientX, e.clientY, 0, 0);
+            } else {
+                createBall(dragStart.x, dragStart.y, -vx, -vy); // Fırlat
+            }
+        });
+
+        animate();
+
+    </script>
+</body>
+
+</html>
