@@ -216,7 +216,8 @@
             <div class="control-header">Obje Oluşturma</div>
             <button id="addBallButton" class="primary">Yeni Top Fırlat</button>
             <div style="margin-top:10px; display:flex; gap:10px; align-items: center;">
-                <input type="color" id="ballColor" value="#38bdf8">
+                <input type="color" id="ballColor" value="#38bdf8"
+                    title="Tüm topların rengini değiştirir (Gökkuşağı kapalıysa)">
                 <div style="flex-grow: 1;">
                     <label>Boyut (Kütle)</label>
                     <input type="range" id="ballSize" min="5" max="40" value="15">
@@ -224,9 +225,18 @@
             </div>
             <label class="switch">
                 <span>Gökkuşağı Modu</span>
-                <input type="checkbox" id="rainbowMode" checked>
+                <input type="checkbox" id="rainbowMode">
                 <span class="slider"></span>
             </label>
+            <label class="switch" style="margin-top: 5px;">
+                <span>Duvara Çarpınca Çoğal</span>
+                <input type="checkbox" id="multiplyOnHit">
+                <span class="slider"></span>
+            </label>
+            <div style="margin-top:5px; margin-bottom: 10px;">
+                <label>Max Top Sınırı <span id="maxBallsVal">150</span></label>
+                <input type="range" id="maxBalls" min="10" max="600" step="10" value="150">
+            </div>
             <button id="clearBallsButton" class="danger" style="margin-top: 5px;">Hepsini Temizle</button>
         </div>
 
@@ -404,6 +414,21 @@
 
                     this.hitFlash = 0.5;
                     playSound(150 + (1 - dist / containerRadius) * 500);
+
+                    // Multiply on Hit
+                    if (document.getElementById('multiplyOnHit').checked) {
+                        const maxBallsVar = parseInt(document.getElementById('maxBalls').value);
+                        if (balls.length < maxBallsVar) {
+                            const newColor = document.getElementById('rainbowMode').checked ?
+                                `hsl(${Math.random() * 360}, 80%, 60%)` : document.getElementById('ballColor').value;
+                            // Add slight randomness to size
+                            const newRadius = Math.max(5, this.radius * (0.8 + Math.random() * 0.4));
+                            balls.push(new Ball(this.x, this.y, newRadius, newColor, {
+                                x: (Math.random() - 0.5) * 20,
+                                y: (Math.random() - 0.5) * 20
+                            }));
+                        }
+                    }
                 }
             }
         }
@@ -488,6 +513,7 @@
             document.getElementById('gravityVal').innerText = document.getElementById('gravity').value;
             document.getElementById('frictionVal').innerText = document.getElementById('friction').value;
             document.getElementById('bounceVal').innerText = document.getElementById('bounce').value;
+            document.getElementById('maxBallsVal').innerText = document.getElementById('maxBalls').value;
             stats.innerText = `Toplar: ${balls.length} | Radius: ${containerRadius}px`;
 
             requestAnimationFrame(animate);
@@ -504,6 +530,19 @@
         document.getElementById('addBallButton').addEventListener('click', () => {
             initAudio();
             spawnBall(center.x, center.y, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20);
+        });
+
+        document.getElementById('ballColor').addEventListener('input', (e) => {
+            if (!document.getElementById('rainbowMode').checked) {
+                balls.forEach(b => b.color = e.target.value);
+            }
+        });
+
+        document.getElementById('rainbowMode').addEventListener('change', (e) => {
+            if (!e.target.checked) {
+                const col = document.getElementById('ballColor').value;
+                balls.forEach(b => b.color = col);
+            }
         });
 
         document.getElementById('clearBallsButton').addEventListener('click', () => balls = []);
