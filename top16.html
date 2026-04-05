@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEURAL PHYSICS — CYBERPUNK EDITION v3.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #020408;
+    --panel-bg: rgba(0, 255, 180, 0.03);
+    --cyan: #00ffe7;
+    --pink: #ff00aa;
+    --yellow: #ffe600;
+    --green: #00ff41;
+    --dim: #0a1a14;
+    --border: rgba(0, 255, 180, 0.2);
+    --text: #b0ffd8;
+    --muted: #3a6b55;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* === SIDEBAR === */
+  #sidebar {
+    width: 300px;
+    min-width: 300px;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--cyan) transparent;
+    position: relative;
+    z-index: 10;
+    /* FIX: sidebar hidden via width not transform so canvas area fills correctly */
+    transition: width 0.3s ease, min-width 0.3s ease;
+  }
+
+  #sidebar.hidden {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  #sidebar::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,180,0.015) 2px, rgba(0,255,180,0.015) 4px);
+    pointer-events: none;
+  }
+
+  .sidebar-inner {
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  .sidebar-header {
+    padding: 18px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .sidebar-header h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.85rem;
+    font-weight: 900;
+    color: var(--cyan);
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px var(--cyan);
+  }
+
+  .sidebar-header .subtitle {
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-top: 2px;
+  }
+
+  .version-tag {
+    position: absolute;
+    top: 18px; right: 16px;
+    font-size: 0.55rem;
+    color: var(--pink);
+    border: 1px solid var(--pink);
+    padding: 2px 6px;
+    letter-spacing: 1px;
+  }
+
+  .section {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(0,255,180,0.1);
+  }
+
+  .section-label {
+    font-size: 0.55rem;
+    letter-spacing: 3px;
+    color: var(--pink);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .param-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
+  .param-name {
+    font-size: 0.65rem;
+    color: var(--muted);
+    min-width: 80px;
+    letter-spacing: 1px;
+  }
+
+  .param-val {
+    font-size: 0.65rem;
+    color: var(--cyan);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 2px;
+    background: linear-gradient(to right, var(--cyan), var(--pink));
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    background: var(--cyan);
+    border-radius: 0;
+    box-shadow: 0 0 8px var(--cyan);
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .toggle-label {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .toggle-switch {
+    position: relative;
+    width: 36px; height: 18px;
+    cursor: pointer;
+  }
+
+  .toggle-switch input { display: none; }
+
+  .toggle-track {
+    width: 36px; height: 18px;
+    background: #0a1a14;
+    border: 1px solid var(--muted);
+    border-radius: 0;
+    position: relative;
+    transition: 0.2s;
+  }
+
+  .toggle-thumb {
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    background: var(--muted);
+    transition: 0.2s;
+  }
+
+  .toggle-switch input:checked ~ .toggle-track { border-color: var(--cyan); }
+  .toggle-switch input:checked ~ .toggle-track .toggle-thumb {
+    left: 20px;
+    background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  .btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--cyan);
+    cursor: pointer;
+    width: 100%;
+    text-transform: uppercase;
+    position: relative;
+    overflow: hidden;
+    transition: 0.2s;
+    margin-bottom: 5px;
+  }
+
+  .btn::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0,255,231,0.15), transparent);
+    transition: 0.4s;
+  }
+
+  .btn:hover::before { left: 100%; }
+  .btn:hover { border-color: var(--cyan); color: #fff; box-shadow: 0 0 12px rgba(0,255,231,0.3); }
+  .btn.active { background: rgba(0,255,231,0.15); border-color: var(--cyan); color: #fff; }
+  .btn.danger { border-color: rgba(255,0,100,0.4); color: var(--pink); }
+  .btn.danger:hover { box-shadow: 0 0 12px rgba(255,0,170,0.3); }
+
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 5px; }
+
+  .shape-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+    margin-bottom: 10px;
+  }
+
+  .shape-btn {
+    aspect-ratio: 1;
+    border: 1px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.2s;
+    font-size: 1.1rem;
+  }
+
+  .shape-btn:hover, .shape-btn.active {
+    border-color: var(--cyan);
+    background: rgba(0,255,231,0.1);
+    box-shadow: 0 0 10px rgba(0,255,231,0.2);
+  }
+
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  input[type="color"] {
+    width: 28px; height: 28px;
+    border: 1px solid var(--border);
+    background: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .color-label { font-size: 0.65rem; color: var(--muted); }
+
+  #stats-bar {
+    padding: 6px 16px;
+    background: rgba(0,0,0,0.7);
+    border-top: 1px solid var(--border);
+    font-size: 0.55rem;
+    letter-spacing: 2px;
+    color: var(--muted);
+    display: flex;
+    gap: 16px;
+    margin-top: auto;
+  }
+
+  .stat-item span { color: var(--cyan); }
+
+  /* === CANVAS AREA === */
+  #canvas-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  canvas { display: block; position: absolute; top: 0; left: 0; }
+
+  #toggle-btn {
+    position: absolute;
+    top: 14px; left: 14px;
+    z-index: 20;
+    width: 38px; height: 38px;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid var(--border);
+    color: var(--cyan);
+    cursor: pointer;
+    font-size: 1rem;
+    font-family: 'Orbitron', monospace;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  #toggle-btn:hover { border-color: var(--cyan); box-shadow: 0 0 12px rgba(0,255,231,0.3); }
+
+  #hud {
+    position: absolute;
+    top: 14px; right: 14px;
+    z-index: 10;
+    pointer-events: none;
+    text-align: right;
+  }
+
+  .hud-line {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.55rem;
+    color: rgba(0,255,180,0.4);
+    letter-spacing: 2px;
+    line-height: 1.8;
+  }
+
+  .hud-line.bright { color: var(--cyan); }
+
+  #canvas-area::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  #gravity-cursor {
+    position: absolute;
+    width: 20px; height: 20px;
+    border: 1px solid var(--pink);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    display: none;
+    z-index: 15;
+  }
+
+  #gravity-cursor::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 4px; height: 4px;
+    background: var(--pink);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 6px var(--pink);
+  }
+
+  #particle-canvas {
+    pointer-events: none;
+    z-index: 6;
+  }
+
+  #mainCanvas { z-index: 1; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="sidebar-inner">
+  <div class="sidebar-header">
+    <h1>NEURAL PHYSICS</h1>
+    <div class="subtitle">CYBERPUNK SIMULATION ENGINE</div>
+    <div class="version-tag">v3.1</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">// Obje Oluştur</div>
+    <button class="btn active" id="addBallBtn">[ + TOP FIRLT ]</button>
+    <div class="color-row">
+      <input type="color" id="ballColor" value="#00ffe7">
+      <span class="color-label">TOP RENGİ</span>
+      <div style="flex:1"></div>
+      <button class="btn danger" id="clearBtn" style="width:auto; margin:0; padding: 5px 10px;">TEMIZLE</button>
+    </div>
+    <div class="param-row">
+      <span class="param-name">BOYUT</span>
+      <input type="range" id="ballSize" min="5" max="50" value="15">
+      <span class="param-val" id="ballSizeVal">15</span>
+    </div>
+    <div class="param-row">
+      <span class="param-name">MAX TOP</span>
+      <input type="range" id="maxBalls" min="10" max="800" step="10" value="200">
+      <span class="param-val" id="maxBallsVal">200</span>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">GÖKKUŞAĞI MODU</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="rainbowMode">
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">ÇARPTA ÇOĞAL</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="multiplyOnHit">
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">// Dünya Fizikleri</div>
+    <div class="param-row">
+      <span class="param-name">YERÇEKİMİ</span>
+      <input type="range" id="gravity" min="-0.8" max="1.5" step="0.01" value="0.3">
+      <span class="param-val" id="gravityVal">0.30</span>
+    </div>
+    <div class="param-row">
+      <span class="param-name">HAVA DİR.</span>
+      <input type="range" id="friction" min="0.95" max="1.00" step="0.001" value="0.99">
+      <span class="param-val" id="frictionVal">0.990</span>
+    </div>
+    <div class="param-row">
+      <span class="param-name">ESNEKLİK</span>
+      <input type="range" id="bounce" min="0.1" max="1.3" step="0.05" value="0.8">
+      <span class="param-val" id="bounceVal">0.80</span>
+    </div>
+    <div class="param-row">
+      <span class="param-name">PATLAMA</span>
+      <input type="range" id="explosionPower" min="0" max="30" step="1" value="10">
+      <span class="param-val" id="explosionVal">10</span>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">TOP ÇARPIŞMASI</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="ballCollision" checked>
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">MOUSE YERÇEKİMİ</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="mouseGravity">
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+    </div>
+    <div class="param-row">
+      <span class="param-name">ÇEKİM GÜÇ</span>
+      <input type="range" id="mouseGravityStrength" min="0.1" max="5" step="0.1" value="1.5">
+      <span class="param-val" id="mouseGravStrVal">1.5</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">// Konteyner Şekli</div>
+    <div class="shape-grid">
+      <button class="shape-btn active" data-shape="circle" title="Çember">⬤</button>
+      <button class="shape-btn" data-shape="square" title="Kare">⬛</button>
+      <button class="shape-btn" data-shape="triangle" title="Üçgen">▲</button>
+      <button class="shape-btn" data-shape="hexagon" title="Altıgen">⬡</button>
+      <button class="shape-btn" data-shape="pentagon" title="Beşgen">⬠</button>
+      <button class="shape-btn" data-shape="diamond" title="Elmas">◆</button>
+      <button class="shape-btn" data-shape="star" title="Yıldız">★</button>
+      <button class="shape-btn" data-shape="capsule" title="Kapsül">🟦</button>
+    </div>
+    <div class="btn-grid">
+      <button class="btn" id="growBtn">[ + BÜYÜT ]</button>
+      <button class="btn" id="shrinkBtn">[ - KÜÇÜLT ]</button>
+    </div>
+    <div class="param-row">
+      <span class="param-name">BOYUT</span>
+      <input type="range" id="containerSizeSlider" min="80" max="600" step="10" value="280">
+      <span class="param-val" id="containerSizeVal">280</span>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">DÖNDÜR</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="rotateContainer" checked>
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+    </div>
+    <div class="param-row">
+      <span class="param-name">HIZ</span>
+      <input type="range" id="rotationSpeed" min="0" max="0.05" step="0.001" value="0.008">
+      <span class="param-val" id="rotSpeedVal">0.008</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">// Görsel Efektler</div>
+    <div class="toggle-row">
+      <span class="toggle-label">HAREKET İZİ</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="trailEffect" checked>
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">NEON PARLAMA</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="glowEffect" checked>
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">PARÇACIK PATLAMASI</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="particleExplosion" checked>
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">SES EFEKTLERİ</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="soundEnabled">
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+    </div>
+    <div class="param-row">
+      <span class="param-name">İZ UZUNLUK</span>
+      <input type="range" id="trailLength" min="5" max="40" step="1" value="18">
+      <span class="param-val" id="trailLenVal">18</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">// Hızlı Presetler</div>
+    <button class="btn" id="preset-chaos">[ KAOS MODU ]</button>
+    <button class="btn" id="preset-zero">[ SIFIR YERÇEKİMİ ]</button>
+    <button class="btn" id="preset-storm">[ TOP FIRTINASI ]</button>
+    <button class="btn" id="preset-calm">[ SAKİN MOD ]</button>
+  </div>
+
+  <div style="flex:1; min-height: 30px;"></div>
+  <div id="stats-bar">
+    <div class="stat-item">TOP: <span id="st-balls">0</span></div>
+    <div class="stat-item">FPS: <span id="st-fps">60</span></div>
+    <div class="stat-item">ŞEKİL: <span id="st-shape">CIRCLE</span></div>
+  </div>
+  </div>
+</div>
+
+<div id="canvas-area">
+  <button id="toggle-btn">☰</button>
+  <canvas id="mainCanvas"></canvas>
+  <canvas id="particle-canvas"></canvas>
+  <div id="gravity-cursor"></div>
+  <div id="hud">
+    <div class="hud-line">NEURAL PHYSICS ENGINE</div>
+    <div class="hud-line bright" id="hud-balls">BALLS: 0</div>
+    <div class="hud-line" id="hud-container">CONTAINER: CIRCLE</div>
+    <div class="hud-line" id="hud-fps">FPS: --</div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SETUP
+// ============================================================
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+const pCanvas = document.getElementById('particle-canvas');
+const pCtx = pCanvas.getContext('2d');
+const canvasArea = document.getElementById('canvas-area');
+
+let W, H, cx, cy;
+
+// FIX: resize reads canvasArea dimensions correctly after sidebar transition
+function resize() {
+  W = canvasArea.clientWidth;
+  H = canvasArea.clientHeight;
+  canvas.width = W; canvas.height = H;
+  pCanvas.width = W; pCanvas.height = H;
+  cx = W / 2; cy = H / 2;
+}
+
+// FIX: fire resize after sidebar transition completes too
+window.addEventListener('resize', resize);
+document.getElementById('sidebar').addEventListener('transitionend', resize);
+resize();
+
+// ============================================================
+// HELPERS — read slider values once per frame
+// ============================================================
+const $  = id => document.getElementById(id);
+const fv = id => parseFloat($(id).value);
+const iv = id => parseInt($(id).value);
+const bv = id => $(id).checked;
+
+// Cache per-frame settings to avoid hundreds of DOM reads per ball
+let cfg = {};
+function refreshCfg() {
+  cfg.gravity        = fv('gravity');
+  cfg.friction       = fv('friction');
+  cfg.bounce         = fv('bounce');
+  cfg.rotSpeed       = bv('rotateContainer') ? fv('rotationSpeed') : 0;
+  cfg.mouseGrav      = bv('mouseGravity');
+  cfg.mouseGravStr   = fv('mouseGravityStrength');
+  cfg.trailEffect    = bv('trailEffect');
+  cfg.glowEffect     = bv('glowEffect');
+  cfg.trailLen       = iv('trailLength');
+  cfg.doCollision    = bv('ballCollision');
+  cfg.expPower       = iv('explosionPower');
+  cfg.partExp        = bv('particleExplosion');
+  cfg.multiply       = bv('multiplyOnHit');
+  cfg.maxBalls       = iv('maxBalls');
+  cfg.rainbow        = bv('rainbowMode');
+  cfg.sound          = bv('soundEnabled');
+}
+
+// ============================================================
+// AUDIO
+// ============================================================
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playSound(freq, vol = 0.08, type = 'sine', dur = 0.12) {
+  if (!cfg.sound || !audioCtx) return;
+  try {
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const filt = audioCtx.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.frequency.value = freq;
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.connect(filt); filt.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + dur);
+  } catch(e) {}
+}
+
+// ============================================================
+// PARTICLES
+// ============================================================
+let particles = [];
+
+class Particle {
+  constructor(x, y, color) {
+    this.x = x; this.y = y;
+    this.color = color;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 4;
+    this.dx = Math.cos(angle) * speed;
+    this.dy = Math.sin(angle) * speed;
+    this.life = 1.0;
+    this.decay = 0.02 + Math.random() * 0.04;
+    this.size = 1 + Math.random() * 3;
+    this.glow = Math.random() > 0.5;
+  }
+  update() {
+    this.x += this.dx;
+    this.y += this.dy;
+    this.dy += 0.05;
+    this.dx *= 0.97;
+    this.life -= this.decay;
+  }
+  draw() {
+    pCtx.globalAlpha = this.life;
+    if (this.glow) {
+      pCtx.shadowBlur = 6;
+      pCtx.shadowColor = this.color;
+    }
+    pCtx.fillStyle = this.color;
+    pCtx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
+    pCtx.shadowBlur = 0;
+  }
+}
+
+function spawnExplosion(x, y, color, count = 20) {
+  if (!cfg.partExp) return;
+  for (let i = 0; i < count; i++) particles.push(new Particle(x, y, color));
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const p = new Particle(x + Math.cos(angle)*5, y + Math.sin(angle)*5, '#ffffff');
+    p.dx = Math.cos(angle) * 2;
+    p.dy = Math.sin(angle) * 2;
+    p.size = 1; p.decay = 0.06;
+    particles.push(p);
+  }
+}
+
+// ============================================================
+// CONTAINER SHAPES
+// ============================================================
+let containerShape = 'circle';
+let containerSize  = 280;
+let rotationAngle  = 0;
+
+function getContainerVertices(shape, size, angle) {
+  const pts = [];
+  const cos = Math.cos, sin = Math.sin;
+  switch(shape) {
+    case 'circle': return null;
+    case 'square': {
+      const h = size * 0.85;
+      for (const [x,y] of [[-h,-h],[h,-h],[h,h],[-h,h]]) {
+        pts.push({ x: cx + x*cos(angle) - y*sin(angle), y: cy + x*sin(angle) + y*cos(angle) });
+      }
+      return pts;
+    }
+    case 'diamond': {
+      for (const [x,y] of [[0,-size*1.1],[size*0.7,0],[0,size*1.1],[-size*0.7,0]]) {
+        pts.push({ x: cx + x*cos(angle) - y*sin(angle), y: cy + x*sin(angle) + y*cos(angle) });
+      }
+      return pts;
+    }
+    case 'triangle': {
+      for (let i=0;i<3;i++) {
+        const a = angle + (i/3)*Math.PI*2 - Math.PI/2;
+        pts.push({ x: cx + cos(a)*size, y: cy + sin(a)*size });
+      }
+      return pts;
+    }
+    case 'hexagon': {
+      for (let i=0;i<6;i++) {
+        const a = angle + (i/6)*Math.PI*2;
+        pts.push({ x: cx + cos(a)*size, y: cy + sin(a)*size });
+      }
+      return pts;
+    }
+    case 'pentagon': {
+      for (let i=0;i<5;i++) {
+        const a = angle + (i/5)*Math.PI*2 - Math.PI/2;
+        pts.push({ x: cx + cos(a)*size, y: cy + sin(a)*size });
+      }
+      return pts;
+    }
+    case 'star': {
+      for (let i=0;i<10;i++) {
+        const a = angle + (i/10)*Math.PI*2 - Math.PI/2;
+        const r = (i%2===0) ? size : size*0.45;
+        pts.push({ x: cx + cos(a)*r, y: cy + sin(a)*r });
+      }
+      return pts;
+    }
+    case 'capsule': {
+      const w = size * 0.55, h = size;
+      const segs = 32;
+      for (let i=0;i<segs;i++) {
+        const t = (i/segs)*Math.PI*2;
+        const bx = Math.cos(t)*w, by = Math.sin(t)*h;
+        pts.push({ x: cx + bx*cos(angle) - by*sin(angle), y: cy + bx*sin(angle) + by*cos(angle) });
+      }
+      return pts;
+    }
+  }
+  return null;
+}
+
+function drawContainer(shape, size, angle) {
+  ctx.save();
+  ctx.shadowBlur = 20;
+  ctx.shadowColor = '#00ffe7';
+  ctx.strokeStyle = 'rgba(0, 255, 231, 0.5)';
+  ctx.lineWidth = 2;
+
+  if (shape === 'circle') {
+    ctx.beginPath();
+    ctx.arc(cx, cy, size, 0, Math.PI*2);
+    ctx.setLineDash([15, 8]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, size, angle, angle + 1.0);
+    ctx.strokeStyle = '#00ffe7';
+    ctx.lineWidth = 3;
+    ctx.shadowBlur = 30;
+    ctx.stroke();
+  } else {
+    const pts = getContainerVertices(shape, size, angle);
+    if (pts) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath();
+      ctx.setLineDash([12,6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.shadowBlur = 25;
+      ctx.fillStyle = '#ff00aa';
+      for (const p of pts) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
+}
+
+// ============================================================
+// POLYGON COLLISION — FIX: robust signed-area winding check
+// ============================================================
+
+function isInsidePolygon(px, py, pts) {
+  let inside = false;
+  for (let i=0, j=pts.length-1; i<pts.length; j=i++) {
+    const xi=pts[i].x, yi=pts[i].y, xj=pts[j].x, yj=pts[j].y;
+    if (((yi>py)!==(yj>py)) && (px < (xj-xi)*(py-yi)/(yj-yi)+xi)) inside = !inside;
+  }
+  return inside;
+}
+
+// FIX: find the nearest wall and push ball cleanly inside, then reflect.
+// Old code had an incorrect sign check on `dot` that let balls escape polygon.
+function reflectOffPolygon(ball) {
+  const pts = getContainerVertices(containerShape, containerSize, rotationAngle);
+  if (!pts) return false;
+
+  if (isInsidePolygon(ball.x, ball.y, pts)) return false; // ball is fine
+
+  // Find the closest edge
+  let minDist = Infinity;
+  let bestNx = 0, bestNy = 0, bestPx = 0, bestPy = 0;
+
+  for (let i=0; i<pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i+1) % pts.length];
+
+    const ex = b.x - a.x, ey = b.y - a.y;
+    const len2 = ex*ex + ey*ey;
+    if (len2 === 0) continue;
+
+    const t = Math.max(0, Math.min(1, ((ball.x-a.x)*ex + (ball.y-a.y)*ey) / len2));
+    const px = a.x + t*ex, py = a.y + t*ey;
+    const d = Math.hypot(ball.x-px, ball.y-py);
+
+    if (d < minDist) {
+      minDist = d;
+      const len = Math.sqrt(len2);
+      // Inward normal: pointing toward polygon interior
+      // For CCW polygon, inward = (ey,-ex)/len; for CW it's the opposite.
+      // We determine orientation and flip if needed.
+      bestNx = -ey / len;
+      bestNy =  ex / len;
+      bestPx = px; bestPy = py;
+    }
+  }
+
+  // Make sure the normal points inward (toward centroid)
+  const toCx = cx - bestPx, toCy = cy - bestPy;
+  if (bestNx*toCx + bestNy*toCy < 0) { bestNx = -bestNx; bestNy = -bestNy; }
+
+  // Reflect velocity
+  const dot = ball.dx * bestNx + ball.dy * bestNy;
+  // Only reflect if moving away from interior
+  if (dot < 0) {
+    ball.dx -= 2 * dot * bestNx;
+    ball.dy -= 2 * dot * bestNy;
+    ball.dx *= cfg.bounce;
+    ball.dy *= cfg.bounce;
+  }
+
+  // Add rotational surface velocity
+  if (cfg.rotSpeed !== 0) {
+    const tx = -bestNy, ty = bestNx;
+    const sv = cfg.rotSpeed * containerSize * 0.08;
+    ball.dx += tx * sv;
+    ball.dy += ty * sv;
+  }
+
+  // Push ball fully inside
+  const pushDist = ball.radius + 1;
+  ball.x = bestPx + bestNx * pushDist;
+  ball.y = bestPy + bestNy * pushDist;
+
+  ball.hitFlash = 0.6;
+  triggerHit(ball);
+  return true;
+}
+
+// ============================================================
+// BALLS
+// ============================================================
+let balls = [];
+
+class Ball {
+  constructor(x, y, radius, color, vel) {
+    this.x = x; this.y = y;
+    this.radius = radius;
+    this.mass = radius;
+    this.color = color;
+    this.dx = vel.x; this.dy = vel.y;
+    this.history = [];
+    this.hitFlash = 0;
+  }
+
+  draw() {
+    if (cfg.trailEffect && this.history.length > 2) {
+      const hist = this.history.slice(-cfg.trailLen);
+      for (let i=1; i<hist.length; i++) {
+        const alpha = (i / hist.length) * 0.35;
+        const size  = this.radius * (i / hist.length) * 0.7;
+        ctx.beginPath();
+        ctx.arc(hist[i].x, hist[i].y, Math.max(1, size), 0, Math.PI*2);
+        ctx.fillStyle = this.color;
+        ctx.globalAlpha = alpha;
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+    ctx.fillStyle = this.hitFlash > 0 ? `rgba(255,255,255,${this.hitFlash})` : this.color;
+
+    if (cfg.glowEffect) {
+      ctx.shadowBlur  = 12 + this.hitFlash * 25;
+      ctx.shadowColor = this.color;
+    }
+
+    ctx.fill();
+    ctx.closePath();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+
+    if (this.hitFlash > 0) this.hitFlash -= 0.06;
+  }
+
+  update() {
+    this.history.push({x: this.x, y: this.y});
+    if (this.history.length > cfg.trailLen + 5) this.history.shift();
+
+    // Mouse gravity
+    if (cfg.mouseGrav && mousePos.x !== null) {
+      const mdx = mousePos.x - this.x, mdy = mousePos.y - this.y;
+      const mdist = Math.hypot(mdx, mdy);
+      if (mdist > 1 && mdist < 400) {
+        const force = cfg.mouseGravStr / (mdist * 0.5);
+        this.dx += (mdx / mdist) * force;
+        this.dy += (mdy / mdist) * force;
+      }
+    }
+
+    this.dy += cfg.gravity;
+    this.dx *= cfg.friction;
+    this.dy *= cfg.friction;
+    this.x  += this.dx;
+    this.y  += this.dy;
+
+    // Container collision
+    if (containerShape === 'circle') {
+      const dist = Math.hypot(this.x - cx, this.y - cy);
+      if (dist + this.radius > containerSize) {
+        const nx = (this.x - cx) / dist;
+        const ny = (this.y - cy) / dist;
+        const dot = this.dx * nx + this.dy * ny;
+        if (dot > 0) { // moving outward
+          this.dx = (this.dx - 2*dot*nx) * cfg.bounce;
+          this.dy = (this.dy - 2*dot*ny) * cfg.bounce;
+        }
+        if (cfg.rotSpeed !== 0) {
+          const tx = -ny, ty = nx;
+          const sv = cfg.rotSpeed * containerSize * 0.1;
+          this.dx += tx * sv;
+          this.dy += ty * sv;
+        }
+        this.x = cx + nx * (containerSize - this.radius);
+        this.y = cy + ny * (containerSize - this.radius);
+        this.hitFlash = 0.6;
+        triggerHit(this);
+      }
+    } else {
+      reflectOffPolygon(this);
+    }
+  }
+}
+
+// ============================================================
+// HIT EFFECTS
+// ============================================================
+function triggerHit(ball) {
+  if (cfg.expPower > 0) spawnExplosion(ball.x, ball.y, ball.color, Math.floor(cfg.expPower * 0.8));
+  playSound(120 + Math.random()*400, 0.08, 'sine');
+
+  if (cfg.multiply && balls.length < cfg.maxBalls) {
+    const nr = Math.max(4, ball.radius * (0.7 + Math.random()*0.5));
+    balls.push(new Ball(ball.x, ball.y, nr, getRandColor(), {
+      x: (Math.random()-0.5)*18,
+      y: (Math.random()-0.5)*18
+    }));
+  }
+}
+
+function getRandColor() {
+  return cfg.rainbow
+    ? `hsl(${Math.random()*360},90%,60%)`
+    : $('ballColor').value;
+}
+
+// ============================================================
+// BALL–BALL COLLISION — FIX: spatial grid for O(n) instead of O(n²)
+// ============================================================
+function checkAllBallCollisions() {
+  if (!cfg.doCollision || balls.length < 2) return;
+
+  // Build a simple spatial hash grid
+  const cellSize = 60; // px — covers most ball radii combos
+  const grid = new Map();
+
+  const key = (col, row) => (col & 0xFFFF) | ((row & 0xFFFF) << 16);
+
+  for (let i=0; i<balls.length; i++) {
+    const b = balls[i];
+    const col = Math.floor(b.x / cellSize);
+    const row = Math.floor(b.y / cellSize);
+    const k = key(col, row);
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(i);
+  }
+
+  const checked = new Set();
+
+  for (let i=0; i<balls.length; i++) {
+    const b1 = balls[i];
+    const col = Math.floor(b1.x / cellSize);
+    const row = Math.floor(b1.y / cellSize);
+
+    for (let dc=-1; dc<=1; dc++) {
+      for (let dr=-1; dr<=1; dr++) {
+        const neighbors = grid.get(key(col+dc, row+dr));
+        if (!neighbors) continue;
+        for (const j of neighbors) {
+          if (j <= i) continue;
+          const pairKey = i * 100000 + j;
+          if (checked.has(pairKey)) continue;
+          checked.add(pairKey);
+          resolveBallPair(b1, balls[j]);
+        }
+      }
+    }
+  }
+}
+
+function resolveBallPair(b1, b2) {
+  const dx = b2.x - b1.x, dy = b2.y - b1.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist >= b1.radius + b2.radius || dist === 0) return;
+
+  const nx = dx/dist, ny = dy/dist;
+  const overlap = (b1.radius + b2.radius - dist) / 2;
+  b1.x -= nx*overlap; b1.y -= ny*overlap;
+  b2.x += nx*overlap; b2.y += ny*overlap;
+
+  const v1n = b1.dx*nx + b1.dy*ny;
+  const v2n = b2.dx*nx + b2.dy*ny;
+  if (v1n - v2n <= 0) return; // already separating
+
+  const m1=b1.mass, m2=b2.mass, mt=m1+m2;
+  const nv1 = (v1n*(m1-m2) + 2*m2*v2n) / mt;
+  const nv2 = (v2n*(m2-m1) + 2*m1*v1n) / mt;
+  b1.dx += (nv1-v1n)*nx; b1.dy += (nv1-v1n)*ny;
+  b2.dx += (nv2-v2n)*nx; b2.dy += (nv2-v2n)*ny;
+
+  b1.hitFlash = 0.3; b2.hitFlash = 0.3;
+  playSound(700 + Math.random()*300, 0.04, 'triangle');
+}
+
+// ============================================================
+// MOUSE
+// ============================================================
+let mousePos = {x: null, y: null};
+let isDragging = false;
+let dragStart  = {x:0, y:0};
+const gravityCursor = $('gravity-cursor');
+
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mousePos.x = e.clientX - r.left;
+  mousePos.y = e.clientY - r.top;
+  if (cfg.mouseGrav) {
+    gravityCursor.style.display = 'block';
+    gravityCursor.style.left = e.clientX + 'px';
+    gravityCursor.style.top  = e.clientY + 'px';
+  } else {
+    gravityCursor.style.display = 'none';
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  mousePos = {x: null, y: null};
+  gravityCursor.style.display = 'none';
+});
+
+canvas.addEventListener('mousedown', e => {
+  initAudio();
+  isDragging = true;
+  const r = canvas.getBoundingClientRect();
+  dragStart = {x: e.clientX - r.left, y: e.clientY - r.top};
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (!isDragging) return;
+  const r = canvas.getBoundingClientRect();
+  const ex = e.clientX - r.left, ey = e.clientY - r.top;
+  spawnBall(dragStart.x, dragStart.y, (dragStart.x-ex)*0.25, (dragStart.y-ey)*0.25);
+  isDragging = false;
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault(); initAudio();
+  const t = e.touches[0], r = canvas.getBoundingClientRect();
+  dragStart = {x: t.clientX-r.left, y: t.clientY-r.top};
+  isDragging = true;
+}, {passive:false});
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!isDragging) return;
+  const t = e.changedTouches[0], r = canvas.getBoundingClientRect();
+  spawnBall(dragStart.x, dragStart.y, (dragStart.x-(t.clientX-r.left))*0.25, (dragStart.y-(t.clientY-r.top))*0.25);
+  isDragging = false;
+}, {passive:false});
+
+// ============================================================
+// SPAWN
+// ============================================================
+function spawnBall(x, y, vx=0, vy=0) {
+  const radius = fv('ballSize');
+  balls.push(new Ball(x ?? cx, y ?? cy, radius, getRandColor(), {x: vx, y: vy}));
+}
+
+// ============================================================
+// GRID BACKGROUND
+// ============================================================
+function drawGrid() {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0, 255, 180, 0.04)';
+  ctx.lineWidth = 1;
+  const step = 40;
+  for (let x=0; x<W; x+=step) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y=0; y<H; y+=step) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(0, 255, 180, 0.1)';
+  ctx.setLineDash([4,8]);
+  ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(W,cy); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+let lastTime=performance.now(), fps=60, frameCount=0, fpsTimer=0;
+
+function animate(ts) {
+  const dt = ts - lastTime; lastTime = ts;
+  frameCount++;
+  fpsTimer += dt;
+  if (fpsTimer >= 500) {
+    fps = Math.round(frameCount / (fpsTimer/1000));
+    frameCount = 0; fpsTimer = 0;
+  }
+
+  // Read all DOM config once per frame
+  refreshCfg();
+
+  // FIX: use full clear instead of semi-transparent fill so trails don't permanently smear
+  if (cfg.trailEffect) {
+    ctx.fillStyle = 'rgba(2, 4, 8, 0.30)';
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#020408';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  drawGrid();
+
+  rotationAngle += cfg.rotSpeed;
+  drawContainer(containerShape, containerSize, rotationAngle);
+
+  for (const b of balls) { b.update(); b.draw(); }
+
+  // FIX: O(n) spatial-grid collision instead of O(n²)
+  checkAllBallCollisions();
+
+  // Particle canvas
+  pCtx.clearRect(0, 0, W, H);
+  particles = particles.filter(p => p.life > 0);
+  for (const p of particles) { p.update(); p.draw(); }
+  pCtx.globalAlpha = 1;
+  pCtx.shadowBlur  = 0;
+
+  // Enforce max balls
+  if (balls.length > cfg.maxBalls) balls.splice(0, balls.length - cfg.maxBalls);
+
+  // HUD
+  $('hud-balls').textContent  = `BALLS: ${balls.length}`;
+  $('hud-fps').textContent    = `FPS: ${fps}`;
+  $('hud-container').textContent = `CONTAINER: ${containerShape.toUpperCase()}`;
+  $('st-balls').textContent   = balls.length;
+  $('st-fps').textContent     = fps;
+  $('st-shape').textContent   = containerShape.toUpperCase();
+
+  requestAnimationFrame(animate);
+}
+
+// ============================================================
+// UI — FIX: unified setSlider helper that updates both slider AND display
+// ============================================================
+function bindSlider(sliderId, valId, fmt) {
+  const el  = $(sliderId);
+  const val = $(valId);
+  const display = v => { val.textContent = fmt ? fmt(v) : v; };
+  el.addEventListener('input', () => display(el.value));
+  display(el.value);
+}
+
+function setSlider(sliderId, valId, value, fmt) {
+  $(sliderId).value = value;
+  $(valId).textContent = fmt ? fmt(value) : value;
+}
+
+bindSlider('ballSize','ballSizeVal');
+bindSlider('maxBalls','maxBallsVal');
+bindSlider('gravity','gravityVal', v => parseFloat(v).toFixed(2));
+bindSlider('friction','frictionVal', v => parseFloat(v).toFixed(3));
+bindSlider('bounce','bounceVal', v => parseFloat(v).toFixed(2));
+bindSlider('explosionPower','explosionVal');
+bindSlider('mouseGravityStrength','mouseGravStrVal', v => parseFloat(v).toFixed(1));
+bindSlider('rotationSpeed','rotSpeedVal', v => parseFloat(v).toFixed(3));
+bindSlider('trailLength','trailLenVal');
+
+$('containerSizeSlider').addEventListener('input', e => {
+  containerSize = parseInt(e.target.value);
+  $('containerSizeVal').textContent = e.target.value;
+});
+
+$('addBallBtn').addEventListener('click', () => {
+  initAudio();
+  spawnBall(cx+(Math.random()-0.5)*50, cy+(Math.random()-0.5)*50,
+            (Math.random()-0.5)*20, (Math.random()-0.5)*20);
+});
+
+$('clearBtn').addEventListener('click', () => { balls = []; particles = []; });
+
+$('growBtn').addEventListener('click', () => {
+  containerSize = Math.min(600, containerSize+20);
+  $('containerSizeSlider').value = containerSize;
+  $('containerSizeVal').textContent = containerSize;
+});
+
+$('shrinkBtn').addEventListener('click', () => {
+  containerSize = Math.max(80, containerSize-20);
+  $('containerSizeSlider').value = containerSize;
+  $('containerSizeVal').textContent = containerSize;
+});
+
+// FIX: sidebar toggle now uses width-collapse, canvas resizes automatically
+$('toggle-btn').addEventListener('click', () => {
+  $('sidebar').classList.toggle('hidden');
+  setTimeout(resize, 310); // wait for transition
+});
+
+$('ballColor').addEventListener('input', e => {
+  if (!bv('rainbowMode')) balls.forEach(b => b.color = e.target.value);
+});
+
+$('rainbowMode').addEventListener('change', e => {
+  if (!e.target.checked) { const c = $('ballColor').value; balls.forEach(b => b.color = c); }
+});
+
+document.querySelectorAll('.shape-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    containerShape = btn.dataset.shape;
+    rotationAngle  = 0;
+  });
+});
+
+// FIX: presets now use setSlider so display values update correctly
+$('preset-chaos').addEventListener('click', () => {
+  initAudio();
+  setSlider('gravity','gravityVal', 0.1, v => parseFloat(v).toFixed(2));
+  setSlider('bounce','bounceVal', 1.2, v => parseFloat(v).toFixed(2));
+  setSlider('friction','frictionVal', 0.999, v => parseFloat(v).toFixed(3));
+  setSlider('explosionPower','explosionVal', 20);
+  setSlider('rotationSpeed','rotSpeedVal', 0.04, v => parseFloat(v).toFixed(3));
+  $('multiplyOnHit').checked = true;
+  $('rainbowMode').checked   = true;
+  $('rotateContainer').checked = true;
+  for (let i=0;i<15;i++) {
+    spawnBall(cx+(Math.random()-0.5)*100, cy+(Math.random()-0.5)*100,
+              (Math.random()-0.5)*25, (Math.random()-0.5)*25);
+  }
+});
+
+$('preset-zero').addEventListener('click', () => {
+  initAudio();
+  setSlider('gravity','gravityVal', 0, v => parseFloat(v).toFixed(2));
+  setSlider('bounce','bounceVal', 1.0, v => parseFloat(v).toFixed(2));
+  setSlider('friction','frictionVal', 1.0, v => parseFloat(v).toFixed(3));
+  $('mouseGravity').checked = true;
+  for (let i=0;i<10;i++) {
+    spawnBall(cx+(Math.random()-0.5)*containerSize*0.8, cy+(Math.random()-0.5)*containerSize*0.8,
+              (Math.random()-0.5)*12, (Math.random()-0.5)*12);
+  }
+});
+
+$('preset-storm').addEventListener('click', () => {
+  initAudio();
+  balls = [];
+  setSlider('gravity','gravityVal', 0.15, v => parseFloat(v).toFixed(2));
+  setSlider('bounce','bounceVal', 0.95, v => parseFloat(v).toFixed(2));
+  setSlider('friction','frictionVal', 0.998, v => parseFloat(v).toFixed(3));
+  setSlider('rotationSpeed','rotSpeedVal', 0.035, v => parseFloat(v).toFixed(3));
+  $('rotateContainer').checked = true;
+  containerShape = 'hexagon';
+  rotationAngle  = 0;
+  document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-shape="hexagon"]').classList.add('active');
+  for (let i=0;i<30;i++) {
+    spawnBall(cx+(Math.random()-0.5)*60, cy+(Math.random()-0.5)*60,
+              (Math.random()-0.5)*30, (Math.random()-0.5)*30);
+  }
+});
+
+$('preset-calm').addEventListener('click', () => {
+  setSlider('gravity','gravityVal', 0.2, v => parseFloat(v).toFixed(2));
+  setSlider('bounce','bounceVal', 0.75, v => parseFloat(v).toFixed(2));
+  setSlider('friction','frictionVal', 0.98, v => parseFloat(v).toFixed(3));
+  setSlider('explosionPower','explosionVal', 5);
+  $('rotateContainer').checked  = false;
+  $('multiplyOnHit').checked    = false;
+});
+
+// ============================================================
+// KICKOFF
+// ============================================================
+for (let i=0;i<3;i++) {
+  spawnBall(cx+(Math.random()-0.5)*80, cy-50, (Math.random()-0.5)*10, Math.random()*8);
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
